@@ -1,9 +1,9 @@
-use crate::args::Arguments;
-use crate::parser::lexer::scanner::Scanner; //
+use crate::OptimizationLevel; // Needed for specifying the level of optimization
 use crate::Options; // Needed for the options section of the Arguments struct
+use crate::WarningFlags; // Needed for adding warnings flags to the options struct
 
 use std::env::Args; // Needed for reading in arguments
-use std::path::Path; // Needed for the path section of the Arguments struc
+use std::path::Path; // Needed for the path section of the Arguments struct
 
 /// Differentiate between different options
 /// when parsing out leaders and their values.
@@ -12,10 +12,14 @@ enum OptionType {
     /// and will throw a warning.
     Unknown,
 
-    // Actual options
+    // Actual Options
     Target,
     Include,
     Optimization,
+
+    // Warning Options
+    WarningAll,
+    WarningNone,
 }
 
 /// Combined output of all parsed arguments,
@@ -69,6 +73,19 @@ pub fn parse(args: Args) -> Arguments {
             files.push(Path::from(&arg));
             continue;
         }
+
+        // Match the OptionType to the method it will
+        // will use to be further parsed.
+        match leader.unwrap() {
+            OptionType::Unknown => (),
+            OptionType::Target | OptionType::Include => {
+                add_option(&mut arguments, scanner.next(), leader.upwrap());
+            }
+            OptionType::Optimization => add_optimization(&mut arguments, &leader),
+            OptionType::WarningAll | OptionType::WarningNone => {
+                add_warning(&mut arguments, leader.unwrap());
+            }
+        }
     }
 
     return arguments;
@@ -92,7 +109,7 @@ fn parse_leader(arg: String) -> Option<OptionType> {
 
     // Handle warnings
     if leader.starts_with("W") {
-        return parse_warning(&leader);
+        return parse_warning(&leader[1..]);
     }
 
     // Match each value to the option type.
@@ -108,7 +125,9 @@ fn parse_leader(arg: String) -> Option<OptionType> {
 /// resolve it to be parsed.
 fn parse_expanded(leader: &str) -> Option<OptionType> {
     // Handle warnings
-    if leader.starts_with("warn-") {}
+    if leader.starts_with("warn-") {
+        return parse_warning(&leader[5..]);
+    }
 
     // Match each value to the option type.
     return Some(match leader {
@@ -118,12 +137,50 @@ fn parse_expanded(leader: &str) -> Option<OptionType> {
     });
 }
 
+/// Parse out the OptionType from the
+/// given warnings string, which will eventually
+/// be converted into a WarningFlag.
 fn parse_warning(leader: &str) -> Option<OptionType> {
     // Match each value to the option type.
     return Some(match leader {
-        "Wall" => OptionType::Warning,
-        "Wextra" => OptionType::Warning,
-        "Werror" => OptionType::Warning,
+        "all" => OptionType::WarningAll,
+        "none" => OptionType::WarningNone,
         _ => OptionType::Unknown,
     });
+}
+
+/// Add a warning option to the
+/// arguments structure, resolving the provided
+/// warning into the options object.
+fn add_warning(arguments: &mut Arguments, warning_type: OptionType) {
+    // Resolve the warning value from the warning type
+    let warning = match warning_type {
+        OptionType::WarningAll => WarningFlags::All,
+        OptionType::WarningNone => WarningFlags::None,
+        _ => panic!("Unexpected value found when processing warnings!"),
+    };
+
+    // Add the warning to the compiler options.
+    arguments.options.warnings.push(warning);
+}
+
+fn add_option(arguments: &mut Arguments, value: String, option_type: OptionType) {
+    match option_type {
+        _ => panic!("Unexpected value found when processing options!"),
+    };
+}
+
+/// Add an optimization level option to the
+/// arguments structure, resolving the provided string
+/// into it's proper optimization level.
+fn add_optimization(arguments: &mut Arguments, leader: &str) {
+    // Resolve the optimization level from the string.
+    arguments.options.optimization = match leader {
+        "O0" => OptimizationLevel::None,
+        "O1" => OptimizationLevel::Low,
+        "O2" => OptimizationLevel::Medium,
+        "O3" => OptimizationLevel::High,
+        "Oz" => OptimizationLevel::Size,
+        _ => panic!("Unexpected value found when processing optimization level!"),
+    }
 }

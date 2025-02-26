@@ -17,6 +17,7 @@ pub enum OptimizationLevel {
 /// warnings within the compilation process.
 pub enum WarningFlags {
     All,
+    None,
 }
 
 /// List of compiler options.
