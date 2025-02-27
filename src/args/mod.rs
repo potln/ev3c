@@ -2,8 +2,10 @@ use crate::OptimizationLevel; // Needed for specifying the level of optimization
 use crate::Options; // Needed for the options section of the Arguments struct
 use crate::WarningFlags; // Needed for adding warnings flags to the options struct
 
+mod info;
+
 use std::env::Args; // Needed for reading in arguments
-use std::path::Path; // Needed for the path section of the Arguments struct
+use std::path::PathBuf; // Needed for the path section of the Arguments struct
 
 /// Differentiate between different options
 /// when parsing out leaders and their values.
@@ -11,6 +13,10 @@ enum OptionType {
     /// The option provided is unrecognized,
     /// and will throw a warning.
     Unknown,
+
+    // Info Options
+    Help,
+    Version,
 
     // Actual Options
     Target,
@@ -24,27 +30,28 @@ enum OptionType {
 
 /// Combined output of all parsed arguments,
 /// used to guide the compiler.
+#[derive(Debug)]
 pub struct Arguments {
     /// List of files to compile.
     /// Multiple different base files can be
     /// compilted at the same time.
-    files: Vec<Path>,
+    pub files: Vec<PathBuf>,
 
     /// List of files to include,
     /// such as libraries and other external code.
-    include: Vec<Path>,
+    pub include: Vec<PathBuf>,
 
     /// List of compiler options,
     /// parsed and converted to the
     /// proper data types.
-    options: Options,
+    pub options: Options,
 }
 
 // Allow for the instatiation of a default
 // Arguments struct.
 impl Arguments {
     // Create a new instance of arguments
-    fn new() -> Arguments {
+    pub fn new() -> Arguments {
         return Arguments {
             files: Vec::new(),       // A file will be required from the user.
             include: Vec::new(),     // No inclusions by default.
@@ -59,32 +66,43 @@ pub fn parse(args: Args) -> Arguments {
     // Scan over the provided arguments
     let mut scanner = args.peekable();
     let mut arguments = Arguments::new();
-    let mut files = Vec::new();
+
+    // Skip over the executable call.
+    scanner.next();
 
     // Loop over every string in the list of
     // arguments.
     while let Some(arg) = scanner.next() {
         // Check if the argument has a leader.
-        let leader = parse_leader(arg);
+        let leader = parse_leader(&arg);
 
         // Push directly to the list of files
         // if the argument does not have a leader.
         if leader.is_none() {
-            files.push(Path::from(&arg));
+            arguments.files.push(PathBuf::from(&arg));
             continue;
         }
 
+        // Unwrap the leader.
+        let leader = leader.unwrap();
+
         // Match the OptionType to the method it will
         // will use to be further parsed.
-        match leader.unwrap() {
+        match leader {
             OptionType::Unknown => (),
             OptionType::Target | OptionType::Include => {
-                add_option(&mut arguments, scanner.next(), leader.upwrap());
+                add_option(
+                    &mut arguments,
+                    scanner.next().expect("Expected value for option!"),
+                    leader,
+                );
             }
-            OptionType::Optimization => add_optimization(&mut arguments, &leader),
+            OptionType::Optimization => add_optimization(&mut arguments, &arg[1..]),
             OptionType::WarningAll | OptionType::WarningNone => {
-                add_warning(&mut arguments, leader.unwrap());
+                add_warning(&mut arguments, leader);
             }
+            OptionType::Help => println!("{}", info::help_message()),
+            OptionType::Version => println!("{}", info::version_message()),
         }
     }
 
@@ -93,14 +111,14 @@ pub fn parse(args: Args) -> Arguments {
 
 /// Check if the provided argument has a
 /// leader, and process it if it does.
-fn parse_leader(arg: String) -> Option<OptionType> {
+fn parse_leader(arg: &str) -> Option<OptionType> {
     // Check for a leader
     if !arg.starts_with("-") {
-        return None();
+        return None;
     }
 
     // Remove leading '-'
-    let leader = arg[1..];
+    let leader = &arg[1..];
 
     // Check if the argument is a double dash '--'
     if leader.starts_with("-") {
@@ -116,6 +134,8 @@ fn parse_leader(arg: String) -> Option<OptionType> {
     return Some(match leader {
         "o" => OptionType::Target,
         "i" => OptionType::Include,
+        "h" => OptionType::Help,
+        "v" => OptionType::Version,
         "O0" | "O1" | "O2" | "O3" | "Oz" => OptionType::Optimization,
         _ => OptionType::Unknown,
     });
@@ -133,6 +153,8 @@ fn parse_expanded(leader: &str) -> Option<OptionType> {
     return Some(match leader {
         "output" => OptionType::Target,
         "include" => OptionType::Include,
+        "help" => OptionType::Help,
+        "version" => OptionType::Version,
         _ => OptionType::Unknown,
     });
 }
@@ -147,6 +169,34 @@ fn parse_warning(leader: &str) -> Option<OptionType> {
         "none" => OptionType::WarningNone,
         _ => OptionType::Unknown,
     });
+}
+
+/// Parse out a list of values into
+/// a list of paths.
+fn parse_path_list(value: &str) -> Vec<PathBuf> {
+    let mut list = Vec::new();
+    let mut scanner = value.chars().peekable();
+
+    while scanner.peek().is_some() {
+        // Create a string to store each path.
+        let mut item = String::new();
+
+        // Collect values until ',' is found or the text is consumed.
+        while let Some(character) = scanner.next() {
+            // Check if the character is a seperator (',')
+            if character == ',' {
+                break;
+            }
+
+            // Collect each character.
+            item.push(character);
+        }
+
+        // Add the finished path to the list of paths.
+        list.push(PathBuf::from(item));
+    }
+
+    return list;
 }
 
 /// Add a warning option to the
@@ -164,8 +214,12 @@ fn add_warning(arguments: &mut Arguments, warning_type: OptionType) {
     arguments.options.warnings.push(warning);
 }
 
+/// Add an option to the list of arguments
+/// based on its Optiontype and value.
 fn add_option(arguments: &mut Arguments, value: String, option_type: OptionType) {
     match option_type {
+        OptionType::Target => arguments.options.target = PathBuf::from(value),
+        OptionType::Include => arguments.include.append(&mut parse_path_list(&value)),
         _ => panic!("Unexpected value found when processing options!"),
     };
 }
@@ -181,6 +235,9 @@ fn add_optimization(arguments: &mut Arguments, leader: &str) {
         "O2" => OptimizationLevel::Medium,
         "O3" => OptimizationLevel::High,
         "Oz" => OptimizationLevel::Size,
-        _ => panic!("Unexpected value found when processing optimization level!"),
+        _ => panic!(
+            "Unexpected value found when processing optimization level! ({})",
+            leader
+        ),
     }
 }

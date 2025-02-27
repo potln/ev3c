@@ -1,6 +1,6 @@
-use ev3::args;
+use ev3c::args;
 use std::env;
 
 fn main() {
-    args::parse(env::args());
+    let arguments = args::parse(env::args());
 }

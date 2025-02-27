@@ -1,6 +1,4 @@
 [package]
-name = "ev3c"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
+name = "ev3c"     # Program Name
+version = "0.1.0" # Program Version
+edition = "2021"  # Rust Edition
