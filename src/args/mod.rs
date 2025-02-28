@@ -3,6 +3,8 @@ use crate::Options; // Needed for the options section of the Arguments struct
 use crate::WarningFlags; // Needed for adding warnings flags to the options struct
 
 mod info;
+pub mod validate;
+pub use validate::check;
 
 use std::env::Args; // Needed for reading in arguments
 use std::path::PathBuf; // Needed for the path section of the Arguments struct
@@ -133,7 +135,7 @@ fn parse_leader(arg: &str) -> Option<OptionType> {
     // Match each value to the option type.
     return Some(match leader {
         "o" => OptionType::Target,
-        "i" => OptionType::Include,
+        "i" | "I" => OptionType::Include,
         "h" => OptionType::Help,
         "v" => OptionType::Version,
         "O0" | "O1" | "O2" | "O3" | "Oz" => OptionType::Optimization,
