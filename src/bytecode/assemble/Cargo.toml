@@ -1,0 +1,8 @@
+[package]
+name = "ev3asm"   # Program Name
+version = "0.1.0" # Program Version
+edition = "2021"  # Rust Edition
+
+[lib]
+path = "lib.rs"
+proc-macro = true

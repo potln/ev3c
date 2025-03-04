@@ -2,3 +2,6 @@
 name = "ev3c"     # Program Name
 version = "0.1.0" # Program Version
 edition = "2021"  # Rust Edition
+
+[dependencies]
+ev3asm = { path = "src/bytecode/assemble" }
