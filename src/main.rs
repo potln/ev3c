@@ -5,10 +5,8 @@ use ev3asm::assemble;
 
 fn main() {
     let arguments = args::check(args::parse(env::args()));
-
-    let bytecode = assemble! {
-        nopa
-        nop
-        nop
-    };
+    
+    let bytecode = assemble![
+    mov rax
+    ];
 }
